@@ -183,6 +183,7 @@ class ChangeVersion(object):
         if old_version == self.new_version:
             typer.echo(f'Old version inside .version is same as new version: {old_version}')
             self.only_replace = True
+        if self.only_replace:
             old_version = None
         if old_version is None:
             old_version = self.find_version_in_file()
