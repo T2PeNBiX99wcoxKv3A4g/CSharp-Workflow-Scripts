@@ -123,20 +123,16 @@ class ChangeVersion(object):
     new_version: str
     old_version: str | None
     split_keyword: str
-    change_readme: bool
-    readme_file_path: str
     extra_find_keyword_list: list[str]
     only_replace: bool = False
 
-    def __init__(self, file_path: str, find_keyword: str, new_version: str, split_keyword: str, change_readme: bool,
-                 readme_file_path: str, extra_find_keywords: str):
-        ic(file_path, find_keyword, new_version, split_keyword, change_readme, readme_file_path, extra_find_keywords)
+    def __init__(self, file_path: str, find_keyword: str, new_version: str, split_keyword: str,
+                 extra_find_keywords: str):
+        ic(file_path, find_keyword, new_version, split_keyword, extra_find_keywords)
         self.file_path = file_path
         self.find_keyword = find_keyword
         self.new_version = ic(new_version_handle(new_version))
         self.split_keyword = split_keyword
-        self.change_readme = change_readme
-        self.readme_file_path = readme_file_path
         self.extra_find_keyword_list = ic(extra_find_keywords_handle(extra_find_keywords))
 
     def extra_find_keywords_check(self, line: str) -> bool:
@@ -201,19 +197,12 @@ class ChangeVersion(object):
         github_output("old_version", self.old_version)
         github_output("new_version", self.new_version)
 
-        if not self.change_readme:
-            return
-
-        replace_keyword_in_file(self.readme_file_path, self.old_version, self.new_version)
-
 
 @app.command()
 def change_version(file_path: str, find_keyword: str, new_version: str, split_keyword: str = "=",
-                   change_readme: bool = False, readme_file_path: str = "./README.md", extra_find_keywords: str = "",
-                   debug: bool = False):
+                   extra_find_keywords: str = "", debug: bool = False):
     debug_output_control(debug)
-    ChangeVersion(file_path, find_keyword, new_version, split_keyword, change_readme, readme_file_path,
-                  extra_find_keywords).handle()
+    ChangeVersion(file_path, find_keyword, new_version, split_keyword, extra_find_keywords).handle()
 
 
 @app.command()
