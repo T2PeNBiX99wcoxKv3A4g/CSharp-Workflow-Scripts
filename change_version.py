@@ -42,9 +42,8 @@ class ChangeVersion(object):
     readme_file_path: str
     extra_find_keyword_list: list[str]
 
-    def __init__(self, file_path: str, find_keyword: str, new_version: str, debug: bool = False,
-                 split_keyword: str = "=",
-                 change_readme: bool = False, readme_file_path: str = "./README.md", extra_find_keywords: str = ""):
+    def __init__(self, file_path: str, find_keyword: str, new_version: str, debug: bool, split_keyword: str,
+                 change_readme: bool, readme_file_path: str, extra_find_keywords: str):
         if debug:
             ic.enable()
         else:
