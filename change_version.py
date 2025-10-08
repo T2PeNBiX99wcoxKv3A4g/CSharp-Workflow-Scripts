@@ -5,7 +5,7 @@ import typer
 from icecream import ic
 
 
-class OldVersionNotFound(Exception):
+class OldVersionNotFoundError(Exception):
     def __init__(self, *args, **kwargs): pass
 
 
@@ -126,7 +126,7 @@ class ChangeVersion(object):
             old_version = self.find_version_in_file()
         ic(old_version, self.new_version)
         if old_version is None:
-            raise OldVersionNotFound(f'Old version is not found')
+            raise OldVersionNotFoundError(f'Old version is not found')
         self.old_version = old_version
 
     @staticmethod
