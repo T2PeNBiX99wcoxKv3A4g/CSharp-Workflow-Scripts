@@ -1,2 +1,3 @@
+requests
 icecream
 typer~=0.19.2

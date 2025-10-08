@@ -106,7 +106,7 @@ def github_output(name: str, value: str):
 
 
 # refs: https://github.com/orgs/community/discussions/28146
-def github__multiline_output(name: str, value: str):
+def github_multiline_output(name: str, value: str):
     if github_output_env_key not in os.environ:
         typer.echo(f"[{github_output_env_key}] environment variable is not set.")
         return
