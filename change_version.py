@@ -27,6 +27,7 @@ remove_chars_in_version_path = [
 ]
 
 version_file = "./.version"
+github_output_env_key = "GITHUB_OUTPUT"
 app = typer.Typer()
 
 
@@ -93,13 +94,19 @@ def debug_output_control(debug: bool):
 
 # refs: https://github.com/orgs/community/discussions/28146
 def github_output(name: str, value: str):
-    with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+    if github_output_env_key not in os.environ:
+        typer.echo(f"[{github_output_env_key}] environment variable is not set.")
+        return
+    with open(os.environ[github_output_env_key], "a") as fh:
         typer.echo(f"{name}={value}", file=fh)
 
 
 # refs: https://github.com/orgs/community/discussions/28146
 def github__multiline_output(name: str, value: str):
-    with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+    if github_output_env_key not in os.environ:
+        typer.echo(f"[{github_output_env_key}] environment variable is not set.")
+        return
+    with open(os.environ[github_output_env_key], "a") as fh:
         delimiter = uuid.uuid1()
         typer.echo(f'{name}<<{delimiter}', file=fh)
         typer.echo(value, file=fh)
