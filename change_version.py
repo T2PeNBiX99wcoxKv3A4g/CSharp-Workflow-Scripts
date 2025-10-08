@@ -128,16 +128,17 @@ class ChangeVersion(object):
     old_version: str | None
     split_keyword: str
     extra_find_keyword_list: list[str]
-    only_replace: bool = False
+    only_replace: bool
 
     def __init__(self, file_path: str, find_keyword: str, new_version: str, split_keyword: str,
-                 extra_find_keywords: str):
+                 extra_find_keywords: str, only_replace: bool):
         ic(file_path, find_keyword, new_version, split_keyword, extra_find_keywords)
         self.file_path = file_path
         self.find_keyword = find_keyword
         self.new_version = ic(new_version_handle(new_version))
         self.split_keyword = split_keyword
         self.extra_find_keyword_list = ic(extra_find_keywords_handle(extra_find_keywords))
+        self.only_replace = only_replace
 
     def extra_find_keywords_check(self, line: str) -> bool:
         for extra_find_keyword in self.extra_find_keyword_list:
@@ -195,18 +196,22 @@ class ChangeVersion(object):
 
         typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
+        replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
+
+        if self.only_replace:
+            return
+
         write_version_file(self.new_version, VersionType.NEW)
         write_version_file(self.old_version, VersionType.OLD)
-        replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
         github_output("old_version", self.old_version)
         github_output("new_version", self.new_version)
 
 
 @app.command()
 def change_version(file_path: str, find_keyword: str, new_version: str, split_keyword: str = "=",
-                   extra_find_keywords: str = "", debug: bool = False):
+                   extra_find_keywords: str = "", only_replace: bool = False, debug: bool = False):
     debug_output_control(debug)
-    ChangeVersion(file_path, find_keyword, new_version, split_keyword, extra_find_keywords).handle()
+    ChangeVersion(file_path, find_keyword, new_version, split_keyword, extra_find_keywords, only_replace).handle()
 
 
 @app.command()
