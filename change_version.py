@@ -1,5 +1,6 @@
 # coding: utf-8
 import os
+import uuid
 
 import typer
 from icecream import ic
@@ -90,6 +91,21 @@ def debug_output_control(debug: bool):
         ic.disable()
 
 
+# refs: https://github.com/orgs/community/discussions/28146
+def github_output(name: str, value: str):
+    with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+        typer.echo(f"{name}={value}", file=fh)
+
+
+# refs: https://github.com/orgs/community/discussions/28146
+def github__multiline_output(name: str, value: str):
+    with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+        delimiter = uuid.uuid1()
+        typer.echo(f'{name}<<{delimiter}', file=fh)
+        typer.echo(value, file=fh)
+        typer.echo(delimiter, file=fh)
+
+
 class ChangeVersion(object):
     file_path: str
     find_keyword: str
@@ -164,6 +180,8 @@ class ChangeVersion(object):
 
         write_version_file(self.new_version)
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
+        github_output("old_version", self.old_version)
+        github_output("new_version", self.new_version)
 
         if not self.change_readme:
             return
@@ -183,7 +201,9 @@ def change_version(file_path: str, find_keyword: str, new_version: str, split_ke
 @app.command()
 def create_version_file(new_version: str, debug: bool = False):
     debug_output_control(debug)
-    write_version_file(ic(new_version_handle(new_version)))
+    handle_new_version = ic(new_version_handle(new_version))
+    write_version_file(handle_new_version)
+    github_output("new_version", handle_new_version)
 
 
 if __name__ == "__main__":
