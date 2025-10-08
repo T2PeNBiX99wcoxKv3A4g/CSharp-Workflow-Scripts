@@ -6,10 +6,6 @@ import typer
 from icecream import ic
 
 
-class OldVersionNotFoundError(Exception):
-    def __init__(self, *args, **kwargs): pass
-
-
 class InvalidVersionError(Exception):
     def __init__(self, *args, **kwargs): pass
 
@@ -27,6 +23,7 @@ remove_chars_in_version_path = [
 ]
 
 version_file = "./.version"
+old_version_file = "./.version_old"
 github_output_env_key = "GITHUB_OUTPUT"
 app = typer.Typer()
 
@@ -38,10 +35,10 @@ def string_handle(input_string: str, char_list: list[str]) -> str:
     return ret_string.strip()
 
 
-def find_version_file() -> str | None:
-    if not os.path.isfile(version_file):
+def find_version_file(version_file_path: str) -> str | None:
+    if not os.path.isfile(version_file_path):
         return None
-    with open(version_file, "r") as file:
+    with open(version_file_path, "r") as file:
         get_version = file.readline().strip()
         file.close()
         return get_version
@@ -66,6 +63,13 @@ def write_version_file(new_version: str):
         file.write(new_version)
         file.close()
         typer.echo(f'write version ({new_version}) to {version_file}')
+
+
+def write_old_version_file(old_version: str):
+    with open(old_version_file, "w+") as file:
+        file.write(old_version)
+        file.close()
+        typer.echo(f'write old version ({old_version}) to {version_file}')
 
 
 def new_version_handle(new_version: str) -> str:
@@ -122,6 +126,7 @@ class ChangeVersion(object):
     change_readme: bool
     readme_file_path: str
     extra_find_keyword_list: list[str]
+    only_replace: bool = False
 
     def __init__(self, file_path: str, find_keyword: str, new_version: str, split_keyword: str, change_readme: bool,
                  readme_file_path: str, extra_find_keywords: str):
@@ -172,12 +177,17 @@ class ChangeVersion(object):
             return found_version
 
     def find_version(self):
-        old_version = find_version_file()
+        old_version = find_version_file(version_file)
+
+        if old_version == self.new_version:
+            typer.echo(f'Old version inside .version is same as new version: {old_version}')
+            self.only_replace = True
+            old_version = None
         if old_version is None:
             old_version = self.find_version_in_file()
         ic(old_version, self.new_version)
         if old_version is None:
-            raise OldVersionNotFoundError(f'Old version is not found')
+            raise InvalidVersionError(f'Old version is not found')
         self.old_version = old_version
 
     def handle(self):
@@ -186,6 +196,7 @@ class ChangeVersion(object):
         typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
         write_version_file(self.new_version)
+        write_old_version_file(self.old_version)
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
         github_output("old_version", self.old_version)
         github_output("new_version", self.new_version)
@@ -211,6 +222,18 @@ def create_version_file(new_version: str, debug: bool = False):
     handle_new_version = ic(new_version_handle(new_version))
     write_version_file(handle_new_version)
     github_output("new_version", handle_new_version)
+
+
+@app.command()
+def replace_version(file_path: str, debug: bool = False):
+    debug_output_control(debug)
+    old_version = find_version_file(old_version_file)
+    if old_version is None:
+        raise InvalidVersionError(f'Old version is not found in .version_old')
+    new_version = find_version_file(version_file)
+    if new_version is None:
+        raise InvalidVersionError(f'New version is not found in .version')
+    replace_keyword_in_file(file_path, old_version, new_version)
 
 
 if __name__ == "__main__":
