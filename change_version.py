@@ -180,7 +180,7 @@ class ChangeVersion(object):
     def find_version(self):
         old_version = find_version_file(version_file)
 
-        if old_version == self.new_version:
+        if old_version == self.new_version and not self.only_replace:
             typer.echo(f'Old version inside .version is same as new version: {old_version}')
             self.only_replace = True
         if self.only_replace:
