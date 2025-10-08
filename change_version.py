@@ -1,6 +1,7 @@
 # coding: utf-8
 import os
 import uuid
+from enum import Enum
 
 import typer
 from icecream import ic
@@ -8,6 +9,11 @@ from icecream import ic
 
 class InvalidVersionError(Exception):
     def __init__(self, *args, **kwargs): pass
+
+
+class VersionType(Enum):
+    OLD = 0
+    NEW = 1
 
 
 remove_chars_in_new_version = [
@@ -58,18 +64,16 @@ def replace_keyword_in_file(file_path: str, old_string: str, new_string: str):
         file.close()
 
 
-def write_version_file(new_version: str):
-    with open(version_file, "w+") as file:
+def write_version_file_in_path(new_version: str, version_file_path: str):
+    with open(version_file_path, "w+") as file:
         file.write(new_version)
         file.close()
-        typer.echo(f'write version ({new_version}) to {version_file}')
+        typer.echo(f'write version ({new_version}) to {version_file_path}')
 
 
-def write_old_version_file(old_version: str):
-    with open(old_version_file, "w+") as file:
-        file.write(old_version)
-        file.close()
-        typer.echo(f'write old version ({old_version}) to {version_file}')
+def write_version_file(new_version: str, version_file_type: VersionType):
+    path = version_file if version_file_type == VersionType.NEW else old_version_file
+    write_version_file_in_path(new_version, path)
 
 
 def new_version_handle(new_version: str) -> str:
@@ -191,8 +195,8 @@ class ChangeVersion(object):
 
         typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
-        write_version_file(self.new_version)
-        write_old_version_file(self.old_version)
+        write_version_file(self.new_version, VersionType.NEW)
+        write_version_file(self.old_version, VersionType.OLD)
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
         github_output("old_version", self.old_version)
         github_output("new_version", self.new_version)
@@ -209,7 +213,7 @@ def change_version(file_path: str, find_keyword: str, new_version: str, split_ke
 def create_version_file(new_version: str, debug: bool = False):
     debug_output_control(debug)
     handle_new_version = ic(new_version_handle(new_version))
-    write_version_file(handle_new_version)
+    write_version_file(handle_new_version, VersionType.NEW)
     github_output("new_version", handle_new_version)
 
 
