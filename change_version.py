@@ -9,6 +9,10 @@ class OldVersionNotFoundError(Exception):
     def __init__(self, *args, **kwargs): pass
 
 
+class InvalidVersionError(Exception):
+    def __init__(self, *args, **kwargs): pass
+
+
 remove_chars_in_new_version = [
     "\"",
     "v"
@@ -22,6 +26,7 @@ remove_chars_in_version_path = [
 ]
 
 version_file = "./.version"
+app = typer.Typer()
 
 
 def string_handle(input_string: str, char_list: list[str]) -> str:
@@ -31,63 +36,86 @@ def string_handle(input_string: str, char_list: list[str]) -> str:
     return ret_string.strip()
 
 
+def find_version_file() -> str | None:
+    if not os.path.isfile(version_file):
+        return None
+    with open(version_file, "r") as file:
+        get_version = file.readline().strip()
+        file.close()
+        return get_version
+
+
+def replace_keyword_in_file(file_path: str, old_string: str, new_string: str):
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(file_path)
+    ic(file_path, old_string, new_string)
+    with open(file_path, "r+") as file:
+        old_text = "".join(file.readlines())
+        new_text = old_text.replace(old_string, new_string)
+        ic(file_path, old_text, new_text)
+        file.seek(0)
+        file.truncate(0)
+        file.write(new_text)
+        file.close()
+
+
+def write_version_file(new_version: str):
+    with open(version_file, "w+") as file:
+        file.write(new_version)
+        file.close()
+        typer.echo(f'write version ({new_version}) to {version_file}')
+
+
+def new_version_handle(new_version: str) -> str:
+    output_string = new_version.split("-")
+    ic(output_string)
+    output_string[0] = string_handle(output_string[0], remove_chars_in_new_version)
+    ic(output_string)
+    if not output_string[0][0].isdigit():
+        raise InvalidVersionError(f'Invalid version: {new_version}')
+    return "-".join(output_string)
+
+
+def extra_find_keywords_handle(extra_find_keywords: str) -> list[str]:
+    extra_find_keywords_list = extra_find_keywords.split(",")
+    for i in range(len(extra_find_keywords_list)):
+        extra_find_keywords_list[i] = extra_find_keywords_list[i].strip()
+    return extra_find_keywords_list
+
+
+def debug_output_control(debug: bool):
+    if debug:
+        ic.enable()
+    else:
+        ic.disable()
+
+
 class ChangeVersion(object):
     file_path: str
     find_keyword: str
     new_version: str
     old_version: str | None
-    debug: bool
     split_keyword: str
     change_readme: bool
     readme_file_path: str
     extra_find_keyword_list: list[str]
 
-    def __init__(self, file_path: str, find_keyword: str, new_version: str, debug: bool, split_keyword: str,
-                 change_readme: bool, readme_file_path: str, extra_find_keywords: str):
-        if debug:
-            ic.enable()
-        else:
-            ic.disable()
-
+    def __init__(self, file_path: str, find_keyword: str, new_version: str, split_keyword: str, change_readme: bool,
+                 readme_file_path: str, extra_find_keywords: str):
         ic(file_path, find_keyword, new_version, split_keyword, change_readme, readme_file_path, extra_find_keywords)
-        ic("Before", new_version)
-
-        new_version = string_handle(new_version, remove_chars_in_new_version)
-
-        if not new_version[0].isdigit():
-            new_version = new_version[1:]
-
-        ic("After", new_version)
-
-        extra_find_keyword_list = extra_find_keywords.split(",")
-
-        for i in range(len(extra_find_keyword_list)):
-            extra_find_keyword_list[i] = extra_find_keyword_list[i].strip()
-        ic(extra_find_keyword_list)
-
         self.file_path = file_path
         self.find_keyword = find_keyword
-        self.new_version = new_version
-        self.debug = debug
+        self.new_version = ic(new_version_handle(new_version))
         self.split_keyword = split_keyword
         self.change_readme = change_readme
         self.readme_file_path = readme_file_path
-        self.extra_find_keyword_list = extra_find_keyword_list
+        self.extra_find_keyword_list = ic(extra_find_keywords_handle(extra_find_keywords))
 
     def extra_find_keywords_check(self, line: str) -> bool:
         for extra_find_keyword in self.extra_find_keyword_list:
             if line.find(extra_find_keyword) < 0:
                 return False
         return True
-
-    @staticmethod
-    def find_version_file() -> str | None:
-        if not os.path.isfile(version_file):
-            return None
-        with open(version_file, "r") as file:
-            get_version = file.readline().strip()
-            file.close()
-            return get_version
 
     def find_version_in_file(self) -> str | None:
         found_version: str | None = None
@@ -121,7 +149,7 @@ class ChangeVersion(object):
             return found_version
 
     def find_version(self):
-        old_version = self.find_version_file()
+        old_version = find_version_file()
         if old_version is None:
             old_version = self.find_version_in_file()
         ic(old_version, self.new_version)
@@ -129,44 +157,34 @@ class ChangeVersion(object):
             raise OldVersionNotFoundError(f'Old version is not found')
         self.old_version = old_version
 
-    @staticmethod
-    def replace_keyword_in_file(file_path: str, old_string: str, new_string: str):
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(file_path)
-        ic(file_path, old_string, new_string)
-        with open(file_path, "r+") as file:
-            old_text = "".join(file.readlines())
-            new_text = old_text.replace(old_string, new_string)
-            ic(file_path, old_text, new_text)
-            file.seek(0)
-            file.truncate(0)
-            file.write(new_text)
-            file.close()
-
-    def create_version_file(self):
-        with open(version_file, "w+") as file:
-            file.write(self.new_version)
-            file.close()
-
     def handle(self):
         self.find_version()
 
         typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
-        self.create_version_file()
-        self.replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
+        write_version_file(self.new_version)
+        replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
 
         if not self.change_readme:
             return
 
-        self.replace_keyword_in_file(self.readme_file_path, self.old_version, self.new_version)
+        replace_keyword_in_file(self.readme_file_path, self.old_version, self.new_version)
 
 
-def main(file_path: str, find_keyword: str, new_version: str, debug: bool = False, split_keyword: str = "=",
-         change_readme: bool = False, readme_file_path: str = "./README.md", extra_find_keywords: str = ""):
-    ChangeVersion(file_path, find_keyword, new_version, debug, split_keyword, change_readme, readme_file_path,
+@app.command()
+def change_version(file_path: str, find_keyword: str, new_version: str, split_keyword: str = "=",
+                   change_readme: bool = False, readme_file_path: str = "./README.md", extra_find_keywords: str = "",
+                   debug: bool = False):
+    debug_output_control(debug)
+    ChangeVersion(file_path, find_keyword, new_version, split_keyword, change_readme, readme_file_path,
                   extra_find_keywords).handle()
 
 
+@app.command()
+def create_version_file(new_version: str, debug: bool = False):
+    debug_output_control(debug)
+    write_version_file(ic(new_version_handle(new_version)))
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    app()
