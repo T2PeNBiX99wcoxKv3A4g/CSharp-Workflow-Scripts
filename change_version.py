@@ -8,7 +8,7 @@ from icecream import ic
 
 
 class InvalidVersionError(Exception):
-    def __init__(self, *args, **kwargs): pass
+    pass
 
 
 class VersionType(Enum):
@@ -127,7 +127,7 @@ def github_multiline_output(name: str, value: str):
         typer.echo(delimiter, file=fh)
 
 
-class ChangeVersion(object):
+class ChangeVersion:
     file_path: str
     find_keyword: str
     new_version: str
