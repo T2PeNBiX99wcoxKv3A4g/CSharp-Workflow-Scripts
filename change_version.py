@@ -65,16 +65,13 @@ def replace_keyword_in_file(file_path: str, old_string: str | None, new_string: 
         file.write(new_text)
 
 
-def write_version_file_in_path(new_version: str | None, version_file_path: str):
-    if new_version is None:
-        typer.echo(f'Version is unknown, skip write version file in {version_file_path}')
-        return
+def write_version_file_in_path(new_version: str, version_file_path: str):
     with open(version_file_path, "w+") as file:
         file.write(new_version)
         typer.echo(f'write version ({new_version}) to {version_file_path}')
 
 
-def write_version_file(new_version: str | None, version_file_type: VersionType):
+def write_version_file(new_version: str, version_file_type: VersionType):
     path = version_file if version_file_type == VersionType.NEW else old_version_file
     write_version_file_in_path(new_version, path)
 
@@ -104,12 +101,9 @@ def debug_output_control(debug: bool):
 
 
 # refs: https://github.com/orgs/community/discussions/28146
-def github_output(name: str, value: str | None):
+def github_output(name: str, value: str):
     if github_output_env_key not in os.environ:
         typer.echo(f"[{github_output_env_key}] environment variable is not set.")
-        return
-    if value is None:
-        typer.echo("value is None, skip output")
         return
     with open(os.environ[github_output_env_key], "a") as fh:
         typer.echo(f"{name}={value}", file=fh)
@@ -131,7 +125,7 @@ class ChangeVersion:
     file_path: str
     find_keyword: str
     new_version: str
-    old_version: str | None
+    old_version: str
     split_keyword: str
     extra_find_keyword_list: list[str]
     only_replace: bool
@@ -201,7 +195,7 @@ class ChangeVersion:
     def handle(self):
         self.find_version()
 
-        typer.echo(f'Old version: {self.old_version or "Unknown version"}, New version: {self.new_version}')
+        typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
 
