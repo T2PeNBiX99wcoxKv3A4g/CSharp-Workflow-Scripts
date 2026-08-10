@@ -50,10 +50,13 @@ def find_version_file(version_file_path: str) -> str | None:
         return get_version
 
 
-def replace_keyword_in_file(file_path: str, old_string: str, new_string: str):
+def replace_keyword_in_file(file_path: str, old_string: str | None, new_string: str):
     if not os.path.isfile(file_path):
         raise FileNotFoundError(file_path)
     ic(file_path, old_string, new_string)
+    if old_string is None:
+        typer.echo(f'Old version is unknown, skip replace keyword in {file_path}')
+        return
     with open(file_path, "r+") as file:
         old_text = "".join(file.readlines())
         new_text = old_text.replace(old_string, new_string)
@@ -64,14 +67,17 @@ def replace_keyword_in_file(file_path: str, old_string: str, new_string: str):
         file.close()
 
 
-def write_version_file_in_path(new_version: str, version_file_path: str):
+def write_version_file_in_path(new_version: str | None, version_file_path: str):
+    if new_version is None:
+        typer.echo(f'Version is unknown, skip write version file in {version_file_path}')
+        return
     with open(version_file_path, "w+") as file:
         file.write(new_version)
         file.close()
         typer.echo(f'write version ({new_version}) to {version_file_path}')
 
 
-def write_version_file(new_version: str, version_file_type: VersionType):
+def write_version_file(new_version: str | None, version_file_type: VersionType):
     path = version_file if version_file_type == VersionType.NEW else old_version_file
     write_version_file_in_path(new_version, path)
 
@@ -101,9 +107,12 @@ def debug_output_control(debug: bool):
 
 
 # refs: https://github.com/orgs/community/discussions/28146
-def github_output(name: str, value: str):
+def github_output(name: str, value: str | None):
     if github_output_env_key not in os.environ:
         typer.echo(f"[{github_output_env_key}] environment variable is not set.")
+        return
+    if value is None:
+        typer.echo("value is None, skip output")
         return
     with open(os.environ[github_output_env_key], "a") as fh:
         typer.echo(f"{name}={value}", file=fh)
@@ -181,7 +190,7 @@ class ChangeVersion(object):
         old_version = find_version_file(version_file)
 
         if old_version == self.new_version and not self.only_replace:
-            typer.echo(f'Old version inside .version is same as new version: {old_version}')
+            typer.echo(f'Old version inside .version is same as new version: {old_version or "Unknown version"}')
             self.only_replace = True
         if self.only_replace:
             old_version = None
@@ -195,7 +204,7 @@ class ChangeVersion(object):
     def handle(self):
         self.find_version()
 
-        typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
+        typer.echo(f'Old version: {self.old_version or "Unknown version"}, New version: {self.new_version}')
 
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
 
