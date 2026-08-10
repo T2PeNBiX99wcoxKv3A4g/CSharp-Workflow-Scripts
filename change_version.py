@@ -180,6 +180,7 @@ class ChangeVersion:
 
                 ic(version_paths)
                 found_version = string_handle(version_paths[1], remove_chars_in_version_path)
+                break
             return found_version
 
     def find_version(self):
