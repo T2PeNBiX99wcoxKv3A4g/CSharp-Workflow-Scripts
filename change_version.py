@@ -46,7 +46,6 @@ def find_version_file(version_file_path: str) -> str | None:
         return None
     with open(version_file_path, "r") as file:
         get_version = file.readline().strip()
-        file.close()
         return get_version
 
 
@@ -64,7 +63,6 @@ def replace_keyword_in_file(file_path: str, old_string: str | None, new_string: 
         file.seek(0)
         file.truncate(0)
         file.write(new_text)
-        file.close()
 
 
 def write_version_file_in_path(new_version: str | None, version_file_path: str):
@@ -73,7 +71,6 @@ def write_version_file_in_path(new_version: str | None, version_file_path: str):
         return
     with open(version_file_path, "w+") as file:
         file.write(new_version)
-        file.close()
         typer.echo(f'write version ({new_version}) to {version_file_path}')
 
 
@@ -183,7 +180,6 @@ class ChangeVersion(object):
 
                 ic(version_paths)
                 found_version = string_handle(version_paths[1], remove_chars_in_version_path)
-            file.close()
             return found_version
 
     def find_version(self):
