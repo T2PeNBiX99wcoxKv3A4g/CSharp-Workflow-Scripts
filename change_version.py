@@ -178,19 +178,23 @@ class ChangeVersion:
             return found_version
 
     def find_version(self):
-        old_version = find_version_file(version_file)
+        # detected_version is the version to be replaced in this operation.
+        # .version stores the version from the previous operation and is used
+        # as the first source. If it is unavailable or --only-replace is used,
+        # the version is detected directly from the target file.
+        detected_version = find_version_file(version_file)
 
-        if old_version == self.new_version and not self.only_replace:
-            typer.echo(f'Old version inside .version is same as new version: {old_version or "Unknown version"}')
+        if detected_version == self.new_version and not self.only_replace:
+            typer.echo(f'Old version inside .version is same as new version: {detected_version or "Unknown version"}')
             self.only_replace = True
         if self.only_replace:
-            old_version = None
-        if old_version is None:
-            old_version = self.find_version_in_file()
-        ic(old_version, self.new_version)
-        if old_version is None:
+            detected_version = None
+        if detected_version is None:
+            detected_version = self.find_version_in_file()
+        ic(detected_version, self.new_version)
+        if detected_version is None:
             raise InvalidVersionError(f'Old version is not found')
-        self.old_version = old_version
+        self.old_version = detected_version
 
     def handle(self):
         self.find_version()
