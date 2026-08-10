@@ -148,7 +148,7 @@ class ChangeVersion:
 
     def extra_find_keywords_check(self, line: str) -> bool:
         for extra_find_keyword in self.extra_find_keyword_list:
-            if line.find(extra_find_keyword) < 0:
+            if extra_find_keyword not in line:
                 return False
         return True
 
