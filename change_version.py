@@ -182,15 +182,7 @@ class ChangeVersion:
         # .version stores the version from the previous operation and is used
         # as the first source. If it is unavailable or --only-replace is used,
         # the version is detected directly from the target file.
-        detected_version = find_version_file(version_file)
-
-        if detected_version == self.new_version and not self.only_replace:
-            typer.echo(f'Old version inside .version is same as new version: {detected_version or "Unknown version"}')
-            self.only_replace = True
-        if self.only_replace:
-            detected_version = None
-        if detected_version is None:
-            detected_version = self.find_version_in_file()
+        detected_version = self.find_version_in_file()
         ic(detected_version, self.new_version)
         if detected_version is None:
             raise InvalidVersionError(f'Old version is not found')
@@ -202,10 +194,6 @@ class ChangeVersion:
         typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
 
         replace_keyword_in_file(self.file_path, self.old_version, self.new_version)
-
-        if self.only_replace:
-            return
-
         write_version_file(self.new_version, VersionType.NEW)
         write_version_file(self.old_version, VersionType.OLD)
         github_output("old_version", self.old_version)
