@@ -1,10 +1,13 @@
 # coding: utf-8
 from icecream import ic
 
-from change_version import new_version_handle
+from change_version import InvalidVersionError, normalize_version
 
 if __name__ == "__main__":
-    ic(new_version_handle("v1.2.3"))
-    ic(new_version_handle("v1.2.3-test.0"))
-    ic(new_version_handle("vv1.2.3-test.0"))
-    ic(new_version_handle("test"))
+    ic(normalize_version("v1.2.3"))
+    ic(normalize_version("v1.2.3-test.0"))
+    ic(normalize_version("vv1.2.3-test.0"))
+    try:
+        ic(normalize_version("test"))
+    except InvalidVersionError as error:
+        ic(error)
