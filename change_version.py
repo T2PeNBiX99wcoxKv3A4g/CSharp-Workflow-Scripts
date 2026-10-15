@@ -39,6 +39,7 @@ new_version_file = "./.version"
 old_version_file = "./.version_old"
 
 github_output_env_key = "GITHUB_OUTPUT"
+github_output_warning_shown = False
 app = typer.Typer()
 
 
@@ -53,18 +54,24 @@ def read_version_file(file_path: str) -> str | None:
     if not os.path.isfile(file_path):
         return None
     with open(file_path, "r", encoding="utf-8") as file:
-        return file.readline().strip()
+        version = file.readline().strip()
+    return version or None
 
 
 def write_version_to_file(version: str, file_path: str):
     with open(file_path, "w+", encoding="utf-8") as file:
         file.write(version)
-        typer.echo(f'write version ({version}) to {file_path}')
+        typer.echo(f'Wrote version {version} to {file_path}.')
 
 
 def write_version_file(version: str, file_type: VersionFileType):
     file_path = new_version_file if file_type == VersionFileType.NEW else old_version_file
     write_version_to_file(version, file_path)
+
+
+def echo_replacement(file_path: str, old_version: str, new_version: str, count: int, unit: str):
+    unit_label = unit if count == 1 else f'{unit}s'
+    typer.echo(f'Replaced version {old_version} with {new_version} in {file_path}, updating {count} {unit_label}.')
 
 
 def normalize_version(new_version: str) -> str:
@@ -73,7 +80,7 @@ def normalize_version(new_version: str) -> str:
     parts[0] = strip_chars(parts[0], strip_chars_from_new_version)
     ic(parts)
     if not parts[0] or not parts[0][0].isdigit():
-        raise InvalidVersionError(f'Invalid version: {new_version}')
+        raise InvalidVersionError(f'Invalid version "{new_version}": a version must start with a digit.')
     return "-".join(parts)
 
 
@@ -87,7 +94,7 @@ def is_comment_line(line: str) -> bool:
 
 def build_version_pattern(version_key: str) -> re.Pattern[str]:
     if not version_key:
-        raise InvalidVersionError('version_key must not be empty')
+        raise InvalidVersionError('The version key must not be empty.')
 
     # A key that already carries the value delimiter (e.g. "<Version>") does not
     # need a second separator, every other key must be followed by one. The
@@ -151,7 +158,7 @@ def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[
     alone. Returns the number of lines that changed.
     """
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(file_path)
+        raise FileNotFoundError(f'File not found: {file_path}.')
 
     def replace_match(match: re.Match[str]) -> str:
         return replace_version_in_match(match, old_version, new_version)
@@ -175,18 +182,28 @@ def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[
         return changed_line_count
 
 
-def replace_version_in_file(file_path: str, old_version: str, new_version: str):
-    """Replace old_version everywhere in the file, key or no key."""
+def replace_version_in_file(file_path: str, old_version: str, new_version: str) -> int:
+    """Replace every occurrence of old_version in the file, key or no key.
+
+    Returns how many occurrences were replaced.
+    """
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(file_path)
+        raise FileNotFoundError(f'File not found: {file_path}.')
+
     ic(file_path, old_version, new_version)
+    # newline="" keeps the original line endings, so CRLF files stay CRLF even
+    # when this runs on Linux.
     with open(file_path, "r+", encoding="utf-8", newline="") as file:
         old_text = file.read()
+        replaced_count = old_text.count(old_version)
+        if replaced_count == 0:
+            return 0
         new_text = old_text.replace(old_version, new_version)
         ic(file_path, old_text, new_text)
         file.seek(0)
         file.truncate(0)
         file.write(new_text)
+        return replaced_count
 
 
 def debug_output_control(debug: bool):
@@ -198,8 +215,13 @@ def debug_output_control(debug: bool):
 
 # refs: https://github.com/orgs/community/discussions/28146
 def github_output(name: str, value: str):
+    global github_output_warning_shown
+
     if github_output_env_key not in os.environ:
-        typer.echo(f"[{github_output_env_key}] environment variable is not set.")
+        if not github_output_warning_shown:
+            typer.echo(f'The {github_output_env_key} environment variable is not set,'
+                       f' so the workflow outputs were skipped.')
+            github_output_warning_shown = True
         return
     with open(os.environ[github_output_env_key], "a", encoding="utf-8") as fh:
         typer.echo(f"{name}={value}", file=fh)
@@ -223,7 +245,7 @@ class ChangeVersion:
 
     def detect_old_version(self):
         if not os.path.isfile(self.file_path):
-            raise FileNotFoundError(self.file_path)
+            raise FileNotFoundError(f'File not found: {self.file_path}.')
 
         detected_version: str | None = None
         with open(self.file_path, "r", encoding="utf-8", newline="") as file:
@@ -234,7 +256,7 @@ class ChangeVersion:
 
         ic(detected_version, self.new_version)
         if detected_version is None:
-            raise InvalidVersionError(f'Old version is not found in {self.file_path}')
+            raise InvalidVersionError(f'No version was found for key "{self.version_key}" in {self.file_path}.')
         self.old_version = detected_version
 
     def run(self):
@@ -243,8 +265,7 @@ class ChangeVersion:
         changed_line_count = replace_version_in_target_lines(
             self.file_path, self.version_pattern, self.required_keywords, self.old_version, self.new_version)
 
-        typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
-        typer.echo(f'replaced version in {changed_line_count} line(s)')
+        echo_replacement(self.file_path, self.old_version, self.new_version, changed_line_count, 'line')
 
         write_version_file(self.new_version, VersionFileType.NEW)
         write_version_file(self.old_version, VersionFileType.OLD)
@@ -272,22 +293,27 @@ def replace_version(file_path: str, version_key: str = "", debug: bool = False):
     debug_output_control(debug)
     old_version = read_version_file(old_version_file)
     if old_version is None:
-        raise InvalidVersionError('Old version is not found in .version_old')
+        raise InvalidVersionError(f'No version was found in {old_version_file}. Run change-version first.')
     new_version = read_version_file(new_version_file)
     if new_version is None:
-        raise InvalidVersionError('New version is not found in .version')
+        raise InvalidVersionError(f'No version was found in {new_version_file}.'
+                                  f' Run change-version or create-version-file first.')
 
     # Without --version-key every occurrence is replaced, which is what
     # documentation files such as README.md need.
     if not version_key:
-        replace_version_in_file(file_path, old_version, new_version)
+        replaced_count = replace_version_in_file(file_path, old_version, new_version)
+        if replaced_count == 0:
+            typer.echo(f'Version {old_version} was not found in {file_path}, so nothing was replaced.')
+            return
+        echo_replacement(file_path, old_version, new_version, replaced_count, 'occurrence')
         return
 
     version_pattern = ic(build_version_pattern(version_key))
     changed_line_count = replace_version_in_target_lines(file_path, version_pattern, [], old_version, new_version)
     if changed_line_count == 0:
-        raise InvalidVersionError(f'No line matched version_key in {file_path}')
-    typer.echo(f'replaced version in {changed_line_count} line(s)')
+        raise InvalidVersionError(f'No line in {file_path} matches the key "{version_key}".')
+    echo_replacement(file_path, old_version, new_version, changed_line_count, 'line')
 
 
 if __name__ == "__main__":
