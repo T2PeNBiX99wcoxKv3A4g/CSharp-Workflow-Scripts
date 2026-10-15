@@ -12,10 +12,10 @@ Detect the current version in a file and replace it with a new one.
 python change_version.py change-version <file_path> <version_key> <new_version> [OPTIONS]
 ```
 
-| Option | Description |
-| --- | --- |
+| Option               | Description                                                |
+|----------------------|------------------------------------------------------------|
 | `--require-keywords` | Comma separated keywords the target line must also contain |
-| `--debug` | Enable `icecream` debug output |
+| `--debug`            | Enable `icecream` debug output                             |
 
 `version_key` is the complete key name, matched case-sensitively, so `Version`
 never matches `AssemblyVersion` or `<SupportedOSPlatformVersion>`. The value is
