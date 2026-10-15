@@ -264,6 +264,12 @@ class ChangeVersion:
 
         changed_line_count = replace_version_in_target_lines(
             self.file_path, self.version_pattern, self.required_keywords, self.old_version, self.new_version)
+        if changed_line_count == 0:
+            # detect_old_version already proved a matching line exists, so a zero
+            # count means that line already carries new_version. Fail before any
+            # state is written, a wrong bump is worse than a failed one.
+            raise InvalidVersionError(f'No version was replaced in {self.file_path}.'
+                                      f' It already holds version {self.new_version}.')
 
         echo_replacement(self.file_path, self.old_version, self.new_version, changed_line_count, 'line')
 
