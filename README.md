@@ -1,6 +1,8 @@
-# C# Workflow Scripts
+# Version Change Workflow Scripts
 
-Simple python scripts for my github repositories
+`CSharp-Workflow-Scripts` are older name, now this name means nothing, can use these scripts in anywhere.
+
+Most used in my GitHub repositories to change the version automatically.
 
 ## change_version.py
 
