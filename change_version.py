@@ -153,12 +153,15 @@ def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[
     if not os.path.isfile(file_path):
         raise FileNotFoundError(file_path)
 
+    def replace_match(match: re.Match[str]) -> str:
+        return replace_version_in_match(match, old_version, new_version)
+
     # newline="" keeps the original line endings, so CRLF files stay CRLF even
     # when this runs on Linux.
     with open(file_path, "r+", encoding="utf-8", newline="") as file:
         lines = file.readlines()
         replaced_lines = [
-            version_pattern.sub(lambda match: replace_version_in_match(match, old_version, new_version), line)
+            version_pattern.sub(replace_match, line)
             if match_target_line(line, version_pattern, required_keywords) is not None
             else line
             for line in lines
