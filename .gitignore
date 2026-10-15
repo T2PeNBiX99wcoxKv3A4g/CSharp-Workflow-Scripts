@@ -2,3 +2,4 @@
 .junie/
 .opencode
 AGENTS.md
+__pycache__/
