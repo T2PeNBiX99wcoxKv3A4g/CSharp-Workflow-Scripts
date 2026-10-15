@@ -109,7 +109,81 @@ def build_version_pattern(version_key: str) -> re.Pattern[str]:
 
 
 def extract_version(match: re.Match[str]) -> str:
-    return match.group("version")
+    return strip_chars(match.group("version"), strip_chars_from_detected_version)
+
+
+def match_target_line(line: str, version_pattern: re.Pattern[str],
+                      required_keywords: list[str]) -> re.Match[str] | None:
+    if is_comment_line(line):
+        return None
+    if not all(keyword in line for keyword in required_keywords):
+        return None
+    return version_pattern.search(line)
+
+
+def find_version_in_line(line: str, version_pattern: re.Pattern[str],
+                         required_keywords: list[str]) -> str | None:
+    match = match_target_line(line, version_pattern, required_keywords)
+    if match is None:
+        return None
+    return extract_version(match)
+
+
+def replace_version_in_match(match: re.Match[str], old_version: str, new_version: str) -> str:
+    # Leave the match alone when it holds a different version, so a matching key
+    # sitting next to an unrelated version is never rewritten.
+    if extract_version(match) != old_version:
+        return match.group(0)
+    matched_text = match.group(0)
+    version_start = match.start("version") - match.start()
+    version_end = match.end("version") - match.start()
+    return matched_text[:version_start] + new_version + matched_text[version_end:]
+
+
+def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[str],
+                                    required_keywords: list[str], old_version: str,
+                                    new_version: str) -> int:
+    """Replace old_version on every line whose version_key matches.
+
+    Only the version inside the match is rewritten, and only when it is the
+    version being replaced. Lines without the key keep their content, so a
+    version that merely appears as a substring of an unrelated value is left
+    alone. Returns the number of lines that changed.
+    """
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(file_path)
+
+    # newline="" keeps the original line endings, so CRLF files stay CRLF even
+    # when this runs on Linux.
+    with open(file_path, "r+", encoding="utf-8", newline="") as file:
+        lines = file.readlines()
+        replaced_lines = [
+            version_pattern.sub(lambda match: replace_version_in_match(match, old_version, new_version), line)
+            if match_target_line(line, version_pattern, required_keywords) is not None
+            else line
+            for line in lines
+        ]
+        changed_line_count = sum(1 for line, replaced_line in zip(lines, replaced_lines) if line != replaced_line)
+        ic(file_path, changed_line_count)
+        if changed_line_count > 0:
+            file.seek(0)
+            file.truncate(0)
+            file.write("".join(replaced_lines))
+        return changed_line_count
+
+
+def replace_version_in_file(file_path: str, old_version: str, new_version: str):
+    """Replace old_version everywhere in the file, key or no key."""
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(file_path)
+    ic(file_path, old_version, new_version)
+    with open(file_path, "r+", encoding="utf-8", newline="") as file:
+        old_text = file.read()
+        new_text = old_text.replace(old_version, new_version)
+        ic(file_path, old_text, new_text)
+        file.seek(0)
+        file.truncate(0)
+        file.write(new_text)
 
 
 def debug_output_control(debug: bool):
@@ -128,24 +202,6 @@ def github_output(name: str, value: str):
         typer.echo(f"{name}={value}", file=fh)
 
 
-def replace_version_in_file(file_path: str, old_version: str | None, new_version: str):
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(file_path)
-    ic(file_path, old_version, new_version)
-    if old_version is None:
-        typer.echo(f'Old version is unknown, skip replace in {file_path}')
-        return
-    # newline="" keeps the original line endings, so CRLF files stay CRLF even
-    # when this runs on Linux.
-    with open(file_path, "r+", encoding="utf-8", newline="") as file:
-        old_text = file.read()
-        new_text = old_text.replace(old_version, new_version)
-        ic(file_path, old_text, new_text)
-        file.seek(0)
-        file.truncate(0)
-        file.write(new_text)
-
-
 class ChangeVersion:
     file_path: str
     version_key: str
@@ -162,33 +218,17 @@ class ChangeVersion:
         self.required_keywords = ic(parse_require_keywords(require_keywords))
         self.version_pattern = ic(build_version_pattern(version_key))
 
-    def required_keywords_present(self, line: str) -> bool:
-        return all(keyword in line for keyword in self.required_keywords)
-
-    def detect_version_in_line(self, line: str) -> str | None:
-        match = self.version_pattern.search(line)
-        if match is None:
-            return None
-        return strip_chars(extract_version(match), strip_chars_from_detected_version)
-
-    def detect_version_in_file(self) -> str | None:
+    def detect_old_version(self):
         if not os.path.isfile(self.file_path):
             raise FileNotFoundError(self.file_path)
 
+        detected_version: str | None = None
         with open(self.file_path, "r", encoding="utf-8", newline="") as file:
             for line in file:
-                if is_comment_line(line):
-                    continue
-                if not self.required_keywords_present(line):
-                    continue
-                detected_version = self.detect_version_in_line(line)
+                detected_version = find_version_in_line(line, self.version_pattern, self.required_keywords)
                 if detected_version is not None:
-                    ic(detected_version)
-                    return detected_version
-        return None
+                    break
 
-    def detect_old_version(self):
-        detected_version = self.detect_version_in_file()
         ic(detected_version, self.new_version)
         if detected_version is None:
             raise InvalidVersionError(f'Old version is not found in {self.file_path}')
@@ -197,9 +237,12 @@ class ChangeVersion:
     def run(self):
         self.detect_old_version()
 
-        typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
+        changed_line_count = replace_version_in_target_lines(
+            self.file_path, self.version_pattern, self.required_keywords, self.old_version, self.new_version)
 
-        replace_version_in_file(self.file_path, self.old_version, self.new_version)
+        typer.echo(f'Old version: {self.old_version}, New version: {self.new_version}')
+        typer.echo(f'replaced version in {changed_line_count} line(s)')
+
         write_version_file(self.new_version, VersionFileType.NEW)
         write_version_file(self.old_version, VersionFileType.OLD)
         github_output("old_version", self.old_version)
@@ -222,7 +265,7 @@ def create_version_file(new_version: str, debug: bool = False):
 
 
 @app.command()
-def replace_version(file_path: str, debug: bool = False):
+def replace_version(file_path: str, version_key: str = "", debug: bool = False):
     debug_output_control(debug)
     old_version = read_version_file(old_version_file)
     if old_version is None:
@@ -230,7 +273,18 @@ def replace_version(file_path: str, debug: bool = False):
     new_version = read_version_file(new_version_file)
     if new_version is None:
         raise InvalidVersionError('New version is not found in .version')
-    replace_version_in_file(file_path, old_version, new_version)
+
+    # Without --version-key every occurrence is replaced, which is what
+    # documentation files such as README.md need.
+    if not version_key:
+        replace_version_in_file(file_path, old_version, new_version)
+        return
+
+    version_pattern = ic(build_version_pattern(version_key))
+    changed_line_count = replace_version_in_target_lines(file_path, version_pattern, [], old_version, new_version)
+    if changed_line_count == 0:
+        raise InvalidVersionError(f'No line matched version_key in {file_path}')
+    typer.echo(f'replaced version in {changed_line_count} line(s)')
 
 
 if __name__ == "__main__":

@@ -22,6 +22,13 @@ never matches `AssemblyVersion` or `<SupportedOSPlatformVersion>`. The value is
 taken after an optional quote and an `=`, `:`, `>` or `(` separator, and comment
 lines (`#`, `!`, `//`, `<!--`, `;`) are skipped.
 
+The version is detected on the first matching line and then replaced **only on
+lines whose key matches**, so the rest of the file is never rewritten. Every
+matching line counts as a target, which handles a version that lives in several
+places at once. A matching key whose value is a *different* version is left
+alone, so `Version="10.0.13"` in a `PackageReference` is not clobbered when the
+project version is `0.1.0`.
+
 ```shell
 # csproj:            <Version>0.1.0</Version>
 python change_version.py App.csproj Version 0.2.0
@@ -48,6 +55,14 @@ other file, which keeps secondary files in sync.
 ```shell
 python change_version.py change-version App.csproj Version 0.2.0
 python change_version.py replace-version README.md
+```
+
+Without options `replace-version` replaces every occurrence, which is what
+documentation files such as `README.md` need. Pass `--version-key` to limit the
+replacement to lines whose key matches instead.
+
+```shell
+python change_version.py replace-version manifest.json --version-key version
 ```
 
 `create-version-file` only writes `./.version`, for when the new version comes
