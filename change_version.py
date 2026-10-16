@@ -149,13 +149,13 @@ def replace_version_in_match(match: re.Match[str], old_version: str, new_version
 
 def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[str],
                                     required_keywords: list[str], old_version: str,
-                                    new_version: str) -> int:
+                                    new_version: str) -> tuple[int, int]:
     """Replace old_version on every line whose version_key matches.
 
     Only the version inside the match is rewritten, and only when it is the
     version being replaced. Lines without the key keep their content, so a
     version that merely appears as a substring of an unrelated value is left
-    alone. Returns the number of lines that changed.
+    alone. Returns (target_line_count, changed_line_count).
     """
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f'File not found: {file_path}.')
@@ -166,20 +166,24 @@ def replace_version_in_target_lines(file_path: str, version_pattern: re.Pattern[
     # newline="" keeps the original line endings, so CRLF files stay CRLF even
     # when this runs on Linux.
     with open(file_path, "r+", encoding="utf-8", newline="") as file:
-        lines = file.readlines()
-        replaced_lines = [
-            version_pattern.sub(replace_match, line)
-            if match_target_line(line, version_pattern, required_keywords) is not None
-            else line
-            for line in lines
-        ]
-        changed_line_count = sum(1 for line, replaced_line in zip(lines, replaced_lines) if line != replaced_line)
-        ic(file_path, changed_line_count)
+        replaced_lines: list[str] = []
+        target_line_count = 0
+        changed_line_count = 0
+        for line in file:
+            replaced_line = line
+            if match_target_line(line, version_pattern, required_keywords) is not None:
+                target_line_count += 1
+                replaced_line = version_pattern.sub(replace_match, line)
+                if replaced_line != line:
+                    changed_line_count += 1
+            replaced_lines.append(replaced_line)
+
+        ic(file_path, target_line_count, changed_line_count)
         if changed_line_count > 0:
             file.seek(0)
             file.truncate(0)
             file.write("".join(replaced_lines))
-        return changed_line_count
+        return target_line_count, changed_line_count
 
 
 def replace_version_in_file(file_path: str, old_version: str, new_version: str) -> int:
@@ -263,7 +267,7 @@ class ChangeVersion:
         self.detect_old_version()
 
         changed_line_count = replace_version_in_target_lines(
-            self.file_path, self.version_pattern, self.required_keywords, self.old_version, self.new_version)
+            self.file_path, self.version_pattern, self.required_keywords, self.old_version, self.new_version)[1]
         if changed_line_count == 0:
             # detect_old_version already proved a matching line exists, so a zero
             # count means that line already carries new_version. Fail before any
@@ -316,9 +320,12 @@ def replace_version(file_path: str, version_key: str = "", debug: bool = False):
         return
 
     version_pattern = ic(build_version_pattern(version_key))
-    changed_line_count = replace_version_in_target_lines(file_path, version_pattern, [], old_version, new_version)
+    target_line_count, changed_line_count = replace_version_in_target_lines(
+        file_path, version_pattern, [], old_version, new_version)
     if changed_line_count == 0:
-        raise InvalidVersionError(f'No line in {file_path} matches the key "{version_key}".')
+        if target_line_count == 0:
+            raise InvalidVersionError(f'No line in {file_path} matches the key "{version_key}".')
+        raise InvalidVersionError(f'No line in {file_path} holds version {old_version}.')
     echo_replacement(file_path, old_version, new_version, changed_line_count, 'line')
 
 
